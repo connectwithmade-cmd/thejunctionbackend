@@ -1,0 +1,15 @@
+node_modules
+
+package-lock.json
+
+# Firebase/GCP credentials
+serviceAcountKey.json
+**/src/config/serviceAcountKey.json
+
+# Firebase/GCP credentials
+serviceAccountKey.json
+**/src/config/serviceAccountKey.json
+
+build
+.env
+./.env
