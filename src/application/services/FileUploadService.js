@@ -18,7 +18,6 @@ class FileUploadService {
       Key: fileName,
       Body: fileBuffer,
       ContentType: mimeType,
-      ACL: 'public-read',
     };
 
     return this.s3.upload(params).promise();
