@@ -151,7 +151,7 @@ async findByIdAndUpdate(userIdToUpdate, updatedData, requesterId) {
       //await FileUploadService.deleteFromS3(user.profilePicture);
     }
   
-    const uniqueFileName = `images/users/${uuidv4()}_${file.originalname}`;
+    const uniqueFileName = `media/users/${uuidv4()}_${file.originalname}`;
     const uploadResult = await FileUploadService.uploadToS3(file.buffer, uniqueFileName, file.mimetype);
   
     await this.findByIdAndUpdate(userId,{profilePicture: uploadResult.Location} );
