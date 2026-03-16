@@ -28,10 +28,10 @@ async createEvent(data) {
   data.access = data.access ?? 'public';
   data.isLinkedWithGroup = !!groupId;
   data.groupId = groupId || null;
-  console.log(organizerId);
+  console.log(data.organizerId);
 
   // Fetch creator for moderation analysis
-  const creator = await User.findById(organizerId);
+  const creator = await User.findById(data.organizerId);
   if (!creator) throw new Error("Creator not found");
 
   // 🔹 AI Moderation check
