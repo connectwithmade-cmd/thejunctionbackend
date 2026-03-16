@@ -8,7 +8,7 @@ import { registerNotification } from '../../application/services/NotificationSer
 
 
 import {v4 as uuidv4} from 'uuid';
-import ModerationEngine from "../moderation/ModerationEngine.js";
+import ModerationEngine from "../../services/moderation/ModerationEngine.js";
 
 
 import mongoose from "mongoose";
