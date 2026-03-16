@@ -17,119 +17,131 @@ class EventService {
 
 
   /// Create a new event
+/// Create a new event with safe AI moderation
 async createEvent(data) {
-
   const { groupId, creatorId } = data;
   const tickets = data.tickets || [];
-
   delete data.tickets;
 
   data.isLive = data.isLive ?? false;
-  data.access = data.access ?? 'public';
+  data.access = data.access ?? "public";
   data.isLinkedWithGroup = !!groupId;
   data.groupId = groupId || null;
-  console.log(data.organizerId);
-
-  // Fetch creator for moderation analysis
-  const creator = await User.findById(data.organizerId);
-  if (!creator) throw new Error("Creator not found");
-
-  // 🔹 AI Moderation check
-  const moderation = await ModerationEngine.moderate({
-    user: creator,
-    contentType: "event",
-    content: {
-      title: data.title,
-      description: data.description,
-      images: data.bannerImages
-    }
-  });
-
-  if (moderation.action === "block") {
-    throw new Error("Event violates platform policies");
-  }
-
-  if (moderation.action === "shadow") {
-    data.moderation = {
-      status: "shadow",
-      riskScore: moderation.risk
-    };
-  }
-
-  if (moderation.action === "review") {
-    data.moderation = {
-      status: "pending",
-      riskScore: moderation.risk
-    };
-  }
 
   // Validate group admin if group is provided
   if (groupId) {
-
     const group = await GroupRepository.findById(groupId);
-
-    if (!group) throw new Error('Group not found.');
+    if (!group) throw new Error("Group not found.");
 
     const isAdmin =
       data.organizerId === group.creator.toString() ||
       group.members.some(
-        member =>
-          member.user.toString() === data.organizerId &&
-          member.role === "admin"
+        (member) =>
+          member.user.toString() === data.organizerId && member.role === "admin"
       );
 
     if (!isAdmin) throw new Error("Only group admins can create events.");
   }
 
-  // 1️⃣ Create and save event
+  // 1️⃣ Create event first (moderation async)
   const event = new Event(data);
   await event.save();
 
   // 2️⃣ Create tickets
   const ticketIds = [];
-
   for (const ticketData of tickets) {
-
-    const ticket = new Ticket({
-      ...ticketData,
-      eventId: event._id
-    });
-
+    const ticket = new Ticket({ ...ticketData, eventId: event._id });
     await ticket.save();
-
     ticketIds.push(ticket._id);
   }
 
-  // 3️⃣ Attach ticket IDs
   event.tickets = ticketIds;
   await event.save();
 
-  // 4️⃣ Link to group
+  // 3️⃣ Link to group if needed
   if (groupId) {
-
     const group = await GroupRepository.findById(groupId);
-
     if (!group) throw new Error("Group not found");
 
     group.eventIds.push(event._id);
-
     group.eventStatuses.push({
       eventId: event._id,
-      status: data.isLive ? "live" : "upcoming"
+      status: data.isLive ? "live" : "upcoming",
     });
 
     await GroupRepository.save(group);
   }
 
-  // 5️⃣ Add event to creator
+  // 4️⃣ Add event to creator
   await User.findByIdAndUpdate(
     creatorId,
     { $push: { myEventIds: event._id } },
     { new: true }
   );
 
-  // 6️⃣ Return populated event
+  // 5️⃣ Queue AI moderation (non-blocking)
+  queueModeration({
+    userId: data.organizerId,
+    eventId: event._id,
+    content: {
+      title: data.title,
+      description: data.description,
+      images: data.bannerImages,
+    },
+  });
+
+  // 6️⃣ Return populated event immediately
   return await Event.findById(event._id).populate("tickets");
+}
+
+/**
+ * Queue moderation request to prevent 429 errors
+ * Uses a simple retry/backoff internally
+ */
+async  queueModeration({ userId, eventId, content }) {
+  setImmediate(async () => {
+    try {
+      const user = await User.findById(userId);
+      if (!user) return;
+
+      // Retry logic to prevent 429
+      for (let i = 0; i < 5; i++) {
+        try {
+          const moderation = await ModerationEngine.moderate({
+            user,
+            contentType: "event",
+            content,
+          });
+
+          const update = {};
+          if (moderation.action === "block") {
+            update["moderation.status"] = "blocked";
+            update["moderation.riskScore"] = moderation.risk;
+          } else if (moderation.action === "shadow") {
+            update["moderation.status"] = "shadow";
+            update["moderation.riskScore"] = moderation.risk;
+          } else if (moderation.action === "review") {
+            update["moderation.status"] = "pending";
+            update["moderation.riskScore"] = moderation.risk;
+          }
+
+          if (Object.keys(update).length > 0) {
+            await Event.findByIdAndUpdate(eventId, update);
+          }
+          break; // success, exit retry
+        } catch (err) {
+          if (err.status === 429) {
+            await new Promise((r) => setTimeout(r, (i + 1) * 1000));
+          } else {
+            console.error("Moderation failed:", err.message);
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Queue moderation error:", err.message);
+    }
+  });
 }
   //Upload Images
   async uploadEventBannerImage(file,type, event) {
