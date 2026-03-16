@@ -80,7 +80,7 @@ async createEvent(data) {
   );
 
   // 5️⃣ Queue AI moderation (non-blocking)
-  queueModeration({
+  this.queueModeration({
     userId: data.organizerId,
     eventId: event._id,
     content: {
