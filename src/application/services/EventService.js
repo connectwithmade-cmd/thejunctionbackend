@@ -28,7 +28,47 @@ async createEvent(data) {
   data.isLinkedWithGroup = !!groupId;
   data.groupId = groupId || null;
 
-  // Validate group admin if group is provided
+  // Fetch creator for moderation
+  const creator = await User.findById(data.organizerId);
+  if (!creator) throw new Error("Creator not found");
+
+  // 🔹 Text moderation first (synchronous)
+  let moderation;
+  try {
+    moderation = await ModerationEngine.moderate({
+      user: creator,
+      contentType: "event",
+      content: {
+        title: data.title,
+        description: data.description,
+      },
+    });
+  } catch (err) {
+    if (err.status === 429) {
+      // Wait 1 second and retry
+      await new Promise((r) => setTimeout(r, 1000));
+      moderation = await ModerationEngine.moderate({
+        user: creator,
+        contentType: "event",
+        content: {
+          title: data.title,
+          description: data.description,
+        },
+      });
+    } else throw err;
+  }
+
+  if (moderation.action === "block") {
+    throw new Error("Event violates platform policies");
+  }
+
+  if (moderation.action === "shadow") {
+    data.moderation = { status: "shadow", riskScore: moderation.risk };
+  } else if (moderation.action === "review") {
+    data.moderation = { status: "pending", riskScore: moderation.risk };
+  }
+
+  // 🔹 Validate group admin if group is provided
   if (groupId) {
     const group = await GroupRepository.findById(groupId);
     if (!group) throw new Error("Group not found.");
@@ -43,7 +83,7 @@ async createEvent(data) {
     if (!isAdmin) throw new Error("Only group admins can create events.");
   }
 
-  // 1️⃣ Create event first (moderation async)
+  // 1️⃣ Create event
   const event = new Event(data);
   await event.save();
 
@@ -54,21 +94,17 @@ async createEvent(data) {
     await ticket.save();
     ticketIds.push(ticket._id);
   }
-
   event.tickets = ticketIds;
   await event.save();
 
-  // 3️⃣ Link to group if needed
+  // 3️⃣ Link to group
   if (groupId) {
     const group = await GroupRepository.findById(groupId);
-    if (!group) throw new Error("Group not found");
-
     group.eventIds.push(event._id);
     group.eventStatuses.push({
       eventId: event._id,
       status: data.isLive ? "live" : "upcoming",
     });
-
     await GroupRepository.save(group);
   }
 
@@ -79,18 +115,13 @@ async createEvent(data) {
     { new: true }
   );
 
-  // 5️⃣ Queue AI moderation (non-blocking)
-  this.queueModeration({
+  // 5️⃣ Async image moderation (optional, heavy)
+  queueModeration({
     userId: data.organizerId,
     eventId: event._id,
-    content: {
-      title: data.title,
-      description: data.description,
-      images: data.bannerImages,
-    },
+    content: { images: data.bannerImages },
   });
 
-  // 6️⃣ Return populated event immediately
   return await Event.findById(event._id).populate("tickets");
 }
 
