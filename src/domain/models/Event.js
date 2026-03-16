@@ -117,7 +117,16 @@ const eventSchema = new mongoose.Schema({
   default: {},
 },
 
-
+  //Moderation
+  moderation:{
+    status:{
+      type:String,
+      enum:["approved","shadow","pending","blocked"],
+      default:"approved"
+    },
+    riskScore:Number,
+    flags:[String]
+},
 
   // Pool: generic map
   pool: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} },
@@ -141,6 +150,7 @@ const eventSchema = new mongoose.Schema({
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
+
 
 // Index for geo queries
 eventSchema.index({ location: "2dsphere" });

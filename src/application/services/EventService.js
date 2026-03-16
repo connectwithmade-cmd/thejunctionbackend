@@ -8,6 +8,8 @@ import { registerNotification } from '../../application/services/NotificationSer
 
 
 import {v4 as uuidv4} from 'uuid';
+import ModerationEngine from "../moderation/ModerationEngine.js";
+
 
 import mongoose from "mongoose";
 import GroupService from "./GroupService.js";
@@ -17,6 +19,7 @@ class EventService {
 
   /// Create a new event
 async createEvent(data) {
+
   const { groupId, creatorId } = data;
   const tickets = data.tickets || [];
 
@@ -27,56 +30,107 @@ async createEvent(data) {
   data.isLinkedWithGroup = !!groupId;
   data.groupId = groupId || null;
 
-  // Validate group admin if group is provided
-  if (groupId) {
-    const group = await GroupRepository.findById(groupId);
-    if (!group) throw new Error('Group not found.');
-    const isAdmin = data.organizerId===group.creator.toString() || group.members.some(member => member.user.toString() === data.organizerId && member.role === 'admin');
+  // Fetch creator for moderation analysis
+  const creator = await User.findById(creatorId);
+  if (!creator) throw new Error("Creator not found");
 
-    if (!isAdmin) throw new Error('Only group admins can create events.');
+  // 🔹 AI Moderation check
+  const moderation = await ModerationEngine.moderate({
+    user: creator,
+    contentType: "event",
+    content: {
+      title: data.title,
+      description: data.description,
+      images: data.bannerImages
+    }
+  });
+
+  if (moderation.action === "block") {
+    throw new Error("Event violates platform policies");
   }
 
-  // 1. Create and save the event
+  if (moderation.action === "shadow") {
+    data.moderation = {
+      status: "shadow",
+      riskScore: moderation.risk
+    };
+  }
+
+  if (moderation.action === "review") {
+    data.moderation = {
+      status: "pending",
+      riskScore: moderation.risk
+    };
+  }
+
+  // Validate group admin if group is provided
+  if (groupId) {
+
+    const group = await GroupRepository.findById(groupId);
+
+    if (!group) throw new Error('Group not found.');
+
+    const isAdmin =
+      data.organizerId === group.creator.toString() ||
+      group.members.some(
+        member =>
+          member.user.toString() === data.organizerId &&
+          member.role === "admin"
+      );
+
+    if (!isAdmin) throw new Error("Only group admins can create events.");
+  }
+
+  // 1️⃣ Create and save event
   const event = new Event(data);
   await event.save();
 
-  // 2. Create and save tickets
+  // 2️⃣ Create tickets
   const ticketIds = [];
+
   for (const ticketData of tickets) {
-    const ticket = new Ticket({ ...ticketData, eventId: event._id });
+
+    const ticket = new Ticket({
+      ...ticketData,
+      eventId: event._id
+    });
+
     await ticket.save();
+
     ticketIds.push(ticket._id);
   }
 
-  // 3. Update event with ticket IDs
+  // 3️⃣ Attach ticket IDs
   event.tickets = ticketIds;
   await event.save();
 
-  // 4. Link to group if needed
+  // 4️⃣ Link to group
   if (groupId) {
-  const group = await GroupRepository.findById(groupId); // 👈 MUST fetch the full document
-  if (!group) throw new Error('Group not found');
 
-  group.eventIds.push(event._id);
-  group.eventStatuses.push({
-    eventId:  event._id,
-    status: data.isLive ? 'live' : 'upcoming',
-  });
+    const group = await GroupRepository.findById(groupId);
 
-  await GroupRepository.save(group); // ✅ pass full document, not ID
-}
+    if (!group) throw new Error("Group not found");
 
-  // 5. Add event to user
+    group.eventIds.push(event._id);
+
+    group.eventStatuses.push({
+      eventId: event._id,
+      status: data.isLive ? "live" : "upcoming"
+    });
+
+    await GroupRepository.save(group);
+  }
+
+  // 5️⃣ Add event to creator
   await User.findByIdAndUpdate(
     creatorId,
     { $push: { myEventIds: event._id } },
     { new: true }
   );
 
-  // 6. Return event with populated tickets
-  return await Event.findById(event._id).populate('tickets');
+  // 6️⃣ Return populated event
+  return await Event.findById(event._id).populate("tickets");
 }
-
   //Upload Images
   async uploadEventBannerImage(file,type, event) {
       const uniqueFileName = `images/${type}/${event.id}/${uuidv4()}_${file.originalname}`;
