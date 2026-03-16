@@ -117,7 +117,7 @@ async createEvent(data) {
   );
 
   // 5️⃣ Async image moderation (optional, heavy)
-  queueModeration({
+  this.queueModeration({
     userId: data.organizerId,
     eventId: event._id,
     content: { images: data.bannerImages },

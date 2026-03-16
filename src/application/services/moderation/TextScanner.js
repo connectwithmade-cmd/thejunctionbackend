@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: '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'
 });
 
 class TextScanner {
