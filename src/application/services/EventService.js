@@ -28,6 +28,7 @@ async createEvent(data) {
   data.access = data.access ?? 'public';
   data.isLinkedWithGroup = !!groupId;
   data.groupId = groupId || null;
+  print(creatorId);
 
   // Fetch creator for moderation analysis
   const creator = await User.findById(creatorId);
