@@ -6,10 +6,9 @@ import Ticket from "../../domain/models/Ticket.js";
 import FileUploadService from "./FileUploadService.js";
 import { registerNotification } from '../../application/services/NotificationService.js'; // adjust path as needed
 
-
+O0
 import {v4 as uuidv4} from 'uuid';
-import ModerationEngine from "../../services/moderation/ModerationEngine.js";
-
+import ModerationEngine from "./moderation/ModerationEngine.js";
 
 import mongoose from "mongoose";
 import GroupService from "./GroupService.js";
