@@ -1,19 +1,22 @@
 import TextScanner from "./TextScanner.js";
-import ImageScanner from "./ImageScanner.js";
 
 class ContentScanner {
 
- async scan(content){
+  /**
+   * Combine all event content for a single scan
+   */
+  async scan({ title, description, images }) {
+    // Combine title + description into one text
+    const combinedText = `${title || ""} ${description || ""}`.trim();
 
-   const text = `${content.title || ""} ${content.description || ""}`;
+    // Only scan once
+    const textRisk = await TextScanner.scan(combinedText);
 
-   const textRisk = await TextScanner.scan(text);
+    // If you want image analysis, do it **after or optional**, but avoid multiple OpenAI calls per event
+    // const imageRisk = await ImageScanner.scan(images);
 
-   const imageRisk = await ImageScanner.scan(content.images);
-
-   return Math.max(textRisk,imageRisk);
- }
-
+    return textRisk; // max(textRisk, imageRisk) if you add ImageScanner
+  }
 }
 
 export default new ContentScanner();

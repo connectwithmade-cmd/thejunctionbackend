@@ -40,7 +40,8 @@ async createEvent(data) {
       contentType: "event",
       content: {
         title: data.title,
-        description: data.description,
+      description: data.description,
+      images: data.bannerImages
       },
     });
   } catch (err) {
