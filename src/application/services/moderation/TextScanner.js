@@ -6,6 +6,7 @@ const openai = new OpenAI({
 
 class TextScanner {
 
+    
   /**
    * Scan text content in a single request
    * Returns a risk score between 0 and 1
