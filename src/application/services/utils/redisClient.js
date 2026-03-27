@@ -1,9 +1,19 @@
 // utils/redisClient.js
 import Redis from "ioredis";
+// utils/redisClient.js
 
-const redis = new Redis({
-  host: "127.0.0.1",
-  port: 6379,
-});
+class FakeRedis {
+  constructor() {
+    this.store = new Map();
+  }
 
-export default redis;
+  async get(key) {
+    return this.store.get(key) || null;
+  }
+
+  async set(key, value) {
+    this.store.set(key, value);
+  }
+}
+
+export default new FakeRedis();
