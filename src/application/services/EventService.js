@@ -33,16 +33,8 @@ async createEvent(data) {
   const creator = await User.findById(data.organizerId);
   if (!creator) throw new Error("Creator not found");
 
-  // 🔹 Text moderation first (synchronous)
 
-  await moderationQueue.add("event-moderation", {
-    userId: data.organizerId,
-    eventId: event._id,
-    content: {
-      title: data.title,
-      description: data.description,
-    },
-  });
+
 
   // 🔹 Validate group admin if group is provided
   if (groupId) {
@@ -63,6 +55,16 @@ async createEvent(data) {
   const event = new Event(data);
   await event.save();
 
+
+  //Text Moderation
+  await moderationQueue.add("event-moderation", {
+    userId: data.organizerId,
+    eventId: event._id,
+    content: {
+      title: data.title,
+      description: data.description,
+    },
+  });
   // 2️⃣ Create tickets
   const ticketIds = [];
   for (const ticketData of tickets) {
