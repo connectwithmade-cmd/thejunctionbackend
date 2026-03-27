@@ -5,6 +5,7 @@ import User from "../../domain/models/User.js";
 import Ticket from "../../domain/models/Ticket.js";
 import FileUploadService from "./FileUploadService.js";
 import { registerNotification } from '../../application/services/NotificationService.js'; // adjust path as needed
+import { moderationQueue } from "./queue/moderationQueue.js";
 
 
 import {v4 as uuidv4} from 'uuid';
@@ -33,41 +34,15 @@ async createEvent(data) {
   if (!creator) throw new Error("Creator not found");
 
   // 🔹 Text moderation first (synchronous)
-  let moderation;
-  try {
-    moderation = await ModerationEngine.moderate({
-      user: creator,
-      contentType: "event",
-      content: {
-        title: data.title,
+
+  await moderationQueue.add("event-moderation", {
+    userId: data.organizerId,
+    eventId: event._id,
+    content: {
+      title: data.title,
       description: data.description,
-      images: data.bannerImages
-      },
-    });
-  } catch (err) {
-    if (err.status === 429) {
-      // Wait 1 second and retry
-      await new Promise((r) => setTimeout(r, 1000));
-      moderation = await ModerationEngine.moderate({
-        user: creator,
-        contentType: "event",
-        content: {
-          title: data.title,
-          description: data.description,
-        },
-      });
-    } else throw err;
-  }
-
-  if (moderation.action === "block") {
-    throw new Error("Event violates platform policies");
-  }
-
-  if (moderation.action === "shadow") {
-    data.moderation = { status: "shadow", riskScore: moderation.risk };
-  } else if (moderation.action === "review") {
-    data.moderation = { status: "pending", riskScore: moderation.risk };
-  }
+    },
+  });
 
   // 🔹 Validate group admin if group is provided
   if (groupId) {
