@@ -15,6 +15,7 @@ class TextScanner {
     if (!text) return 0;
 
     try {
+      console.log("API KEY:", process.env.OPENAI_API_KEY);
       const response = await openai.moderations.create({
         model: "omni-moderation-latest",
         input: text
