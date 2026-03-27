@@ -1,5 +1,5 @@
 // moderation/BehaviorAnalyzer.js
-import Event from "../../domain/models/Event.js";
+import Event from "../../../domain/models/Event.js";
 
 class BehaviorAnalyzer {
   async analyze(user) {
