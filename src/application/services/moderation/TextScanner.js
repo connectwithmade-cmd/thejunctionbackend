@@ -15,8 +15,19 @@ class TextScanner {
     if (!text) return 0;
 
     try {
-      console.log("API KEY:", process.env.OPENAI_API_KEY);
-      const response = await openai.moderations.create({
+try {
+  const res = await openai.moderations.create({
+    model: "omni-moderation-latest",
+    input: "test"
+  });
+
+  console.log("OK");
+} catch (err) {
+  console.log("STATUS:", err.status);
+  console.log("TYPE:", err.error?.type);
+  console.log("CODE:", err.error?.code);
+  console.log("MESSAGE:", err.error?.message);
+}      const response = await openai.moderations.create({
         model: "omni-moderation-latest",
         input: text
       });
